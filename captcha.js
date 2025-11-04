@@ -15,7 +15,7 @@
         challengeTimeout: 180000,
         maxAttempts: 3,
         tokenLength: 32,
-        minInteractionTime: 800,
+        minInteractionTime: 500,
         fonts: ['Arial', 'Courier New', 'Georgia', 'Times New Roman', 'Verdana'],
         characters: 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
         colors: {
@@ -30,9 +30,10 @@
         }
     };
 
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     global.xsukaxCAPTCHA = { version: '2.0.0' };
     const captchaInstances = new Map();
-    const interactionLog = new WeakMap();
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', autoInitialize);
@@ -64,14 +65,11 @@
                 verified: false,
                 startTime: Date.now(),
                 firstInteractionTime: null,
-                mouseMovements: [],
-                keystrokes: [],
-                container: container,
-                challengeType: Math.random() > 0.5 ? 'distorted' : 'math'
+                interactionCount: 0,
+                container: container
             };
 
             captchaInstances.set(container.id, instanceState);
-            interactionLog.set(container, []);
             
             const wrapper = createWrapper();
             const header = createHeader(container.id);
@@ -140,10 +138,10 @@
             color: ${CONFIG.colors.primary};
             border: 1px solid ${CONFIG.colors.border};
             border-radius: 4px;
-            width: 28px;
-            height: 28px;
+            width: 32px;
+            height: 32px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -179,6 +177,7 @@
             cursor: pointer;
             width: 100%;
             height: auto;
+            touch-action: manipulation;
         `;
         canvas.onclick = () => resetCaptcha(instanceState.id);
         
@@ -195,13 +194,14 @@
         input.placeholder = 'Enter the code';
         input.autocomplete = 'off';
         input.spellcheck = false;
+        input.inputMode = 'text';
         input.style.cssText = `
             flex: 1;
-            padding: 8px 12px;
+            padding: 10px 12px;
             border: 1px solid ${CONFIG.colors.border};
             border-radius: 4px;
             font-family: ${CONFIG.fonts[0]}, monospace;
-            font-size: 14px;
+            font-size: ${isMobile ? '16px' : '14px'};
             transition: border-color 0.2s;
             text-transform: uppercase;
         `;
@@ -217,7 +217,10 @@
             this.style.borderColor = CONFIG.colors.border;
         };
         input.onkeypress = (e) => {
-            if (e.key === 'Enter') verifyCaptcha(instanceState);
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                verifyCaptcha(instanceState);
+            }
         };
         
         const verifyBtn = document.createElement('button');
@@ -231,10 +234,11 @@
             padding: 0 20px;
             cursor: pointer;
             font-family: ${CONFIG.fonts[0]}, sans-serif;
-            font-size: 14px;
+            font-size: ${isMobile ? '16px' : '14px'};
             font-weight: 500;
             transition: background-color 0.2s;
-            min-width: 80px;
+            min-width: 90px;
+            touch-action: manipulation;
         `;
         verifyBtn.onmouseenter = function() {
             if (!this.disabled) this.style.background = '#1a2530';
@@ -283,7 +287,10 @@
         drawComplexBackground(ctx, canvas.width, canvas.height);
         drawDistortedText(ctx, instanceState.currentCode, canvas.width, canvas.height);
         addAdvancedNoise(ctx, canvas.width, canvas.height);
-        addWaveDistortion(ctx, canvas.width, canvas.height);
+        
+        if (!isMobile) {
+            addWaveDistortion(ctx, canvas.width, canvas.height);
+        }
         
         instanceState.canvasFingerprint = generateCanvasFingerprint(ctx, canvas);
         
@@ -380,7 +387,6 @@
 
     function addWaveDistortion(ctx, width, height) {
         const imageData = ctx.getImageData(0, 0, width, height);
-        const pixels = imageData.data;
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = width;
         tempCanvas.height = height;
@@ -408,30 +414,19 @@
     function attachBehaviorTracking(instanceState) {
         const { input, canvas } = instanceState;
         
-        const trackMouse = (e) => {
+        const trackInteraction = () => {
             if (!instanceState.firstInteractionTime) {
                 instanceState.firstInteractionTime = Date.now();
             }
-            instanceState.mouseMovements.push({
-                x: e.clientX,
-                y: e.clientY,
-                t: Date.now()
-            });
-            if (instanceState.mouseMovements.length > 50) {
-                instanceState.mouseMovements.shift();
-            }
+            instanceState.interactionCount++;
         };
         
-        const trackKey = () => {
-            instanceState.keystrokes.push(Date.now());
-            if (instanceState.keystrokes.length > 20) {
-                instanceState.keystrokes.shift();
-            }
-        };
-        
-        input.addEventListener('mousemove', trackMouse);
-        canvas.addEventListener('mousemove', trackMouse);
-        input.addEventListener('keydown', trackKey);
+        input.addEventListener('focus', trackInteraction);
+        input.addEventListener('input', trackInteraction);
+        input.addEventListener('click', trackInteraction);
+        input.addEventListener('touchstart', trackInteraction);
+        canvas.addEventListener('click', trackInteraction);
+        canvas.addEventListener('touchstart', trackInteraction);
     }
 
     function verifyCaptcha(instanceState) {
@@ -452,7 +447,7 @@
         const interactionTime = instanceState.firstInteractionTime ? 
             Date.now() - instanceState.firstInteractionTime : 0;
         
-        if (interactionTime < CONFIG.minInteractionTime) {
+        if (interactionTime < CONFIG.minInteractionTime && instanceState.interactionCount < 2) {
             showStatus(instanceState, 'Please take your time to solve the challenge.', 'error');
             return;
         }
@@ -460,11 +455,9 @@
         instanceState.attempts++;
 
         const normalizedInput = userInput.replace(/\s/g, '').toUpperCase();
-        const normalizedCode = instanceState.currentCode;
+        const normalizedCode = instanceState.currentCode.toUpperCase();
 
-        const isBotLike = analyzeBehavior(instanceState);
-        
-        if (normalizedInput === normalizedCode && !isBotLike) {
+        if (normalizedInput === normalizedCode) {
             instanceState.verified = true;
             showStatus(instanceState, '✓ Verification successful!', 'success');
             
@@ -507,24 +500,6 @@
         }
     }
 
-    function analyzeBehavior(instanceState) {
-        if (instanceState.mouseMovements.length < 3) return true;
-        if (instanceState.keystrokes.length < 2) return true;
-        
-        if (instanceState.keystrokes.length >= 3) {
-            const intervals = [];
-            for (let i = 1; i < instanceState.keystrokes.length; i++) {
-                intervals.push(instanceState.keystrokes[i] - instanceState.keystrokes[i-1]);
-            }
-            const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-            const variance = intervals.reduce((sum, val) => sum + Math.pow(val - avgInterval, 2), 0) / intervals.length;
-            
-            if (variance < 10 && avgInterval < 100) return true;
-        }
-        
-        return false;
-    }
-
     function showStatus(instanceState, message, type) {
         const { status } = instanceState;
         status.textContent = message;
@@ -541,8 +516,7 @@
             instanceState.currentToken = generateToken();
             instanceState.startTime = Date.now();
             instanceState.firstInteractionTime = null;
-            instanceState.mouseMovements = [];
-            instanceState.keystrokes = [];
+            instanceState.interactionCount = 0;
             
             instanceState.input.disabled = false;
             instanceState.verifyBtn.disabled = false;
