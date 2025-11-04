@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAPTCHA Demo - Pure HTML</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen py-8">
+    <div class="container mx-auto px-4 max-w-2xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">xsukax CAPTCHA Demo</h1>
+            <p class="text-gray-600">Pure HTML - Works with .html extension!</p>
+        </div>
+
+        <!-- Form Card -->
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-6">Contact Form</h2>
+            
+            <!-- Message Area -->
+            <div id="messageArea" style="display: none;" class="mb-6 px-4 py-3 rounded-lg">
+                <span id="messageText"></span>
+            </div>
+            
+            <!-- Form -->
+            <form id="contactForm">
+                <!-- Name Field -->
+                <div class="mb-4">
+                    <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+                        Name <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="name" 
+                        name="name" 
+                        required 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter your name"
+                    >
+                </div>
+                
+                <!-- Email Field -->
+                <div class="mb-4">
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+                        Email <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        required 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="your@email.com"
+                    >
+                </div>
+                
+                <!-- Message Field -->
+                <div class="mb-6">
+                    <label for="message" class="block text-sm font-medium text-gray-700 mb-2">
+                        Message <span class="text-red-500">*</span>
+                    </label>
+                    <textarea 
+                        id="message" 
+                        name="message" 
+                        rows="4" 
+                        required 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter your message"
+                    ></textarea>
+                </div>
+                
+                <!-- CAPTCHA Container -->
+                <div class="mb-6">
+                    <div class="xsukax-captcha"></div>
+                </div>
+                
+                <!-- Submit Button -->
+                <button 
+                    type="submit" 
+                    id="submitBtn"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 rounded-lg transition duration-200"
+                >
+                    Submit Form
+                </button>
+            </form>
+        </div>
+
+        <!-- Instructions -->
+        <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 class="font-semibold text-blue-800 mb-2">📝 Setup Instructions:</h3>
+            <ol class="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                <li>Upload both <code class="bg-blue-100 px-2 py-1 rounded">captcha.php</code> and <code class="bg-blue-100 px-2 py-1 rounded">captcha.js</code> to your server</li>
+                <li>Replace <code class="bg-blue-100 px-2 py-1 rounded">YOUR_SITE_ID</code> below with your actual Site ID</li>
+                <li>Save this as <code class="bg-blue-100 px-2 py-1 rounded">demo.html</code> (pure HTML!)</li>
+                <li>Upload and test - it works!</li>
+            </ol>
+        </div>
+
+        <!-- Code Display -->
+        <div class="mt-6 bg-gray-50 border border-gray-300 rounded-lg p-4">
+            <h3 class="font-semibold text-gray-800 mb-2">Integration Code (already included below):</h3>
+            <code class="text-xs text-gray-700 bg-white p-2 block rounded border">
+                &lt;script src="captcha.js?site=YOUR_SITE_ID"&gt;&lt;/script&gt;
+            </code>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-sm text-gray-500">
+            <p>Powered by xsukax CAPTCHA • 2-File System (PHP + JS)</p>
+        </div>
+    </div>
+
+    <!-- IMPORTANT: Replace YOUR_SITE_ID with your actual Site ID -->
+    <script src="captcha.js?site=YOUR_SITE_ID"></script>
+
+    <!-- Form Handling Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var form = document.getElementById('contactForm');
+            var submitBtn = document.getElementById('submitBtn');
+            var messageArea = document.getElementById('messageArea');
+            var messageText = document.getElementById('messageText');
+            
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Disable submit button
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Verifying...';
+                
+                // Get CAPTCHA value
+                var captchaCode = xsukaxCaptcha.getCaptchaValue();
+                
+                if (!captchaCode) {
+                    showMessage('Please enter the CAPTCHA code', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Form';
+                    return;
+                }
+                
+                // Verify CAPTCHA
+                xsukaxCaptcha.verify(captchaCode, function(result) {
+                    if (result.success) {
+                        // Success - process form
+                        showMessage('✓ Form submitted successfully! CAPTCHA verified.', 'success');
+                        
+                        // Get form data
+                        var formData = {
+                            name: document.getElementById('name').value,
+                            email: document.getElementById('email').value,
+                            message: document.getElementById('message').value
+                        };
+                        
+                        console.log('Form data ready to process:', formData);
+                        // Here you can send form data to your backend via AJAX
+                        
+                        // Reset form
+                        form.reset();
+                        
+                    } else {
+                        // Failed - show error
+                        showMessage('✗ ' + result.message, 'error');
+                    }
+                    
+                    // Re-enable button
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Form';
+                });
+            });
+            
+            function showMessage(message, type) {
+                messageText.textContent = message;
+                messageArea.style.display = 'block';
+                
+                if (type === 'success') {
+                    messageArea.className = 'mb-6 px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-800';
+                } else {
+                    messageArea.className = 'mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-800';
+                }
+                
+                messageArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                
+                // Auto-hide after 5 seconds
+                setTimeout(function() {
+                    messageArea.style.display = 'none';
+                }, 5000);
+            }
+        });
+    </script>
+</body>
+</html>
